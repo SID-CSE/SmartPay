@@ -1,0 +1,26 @@
+[
+  {
+    "model": "\n    \"Random Forest\": RandomForestRegressor(\n        n_estimators=120,\n        random_state=42,\n        n_jobs=-1,\n        verbose=1\n    ),\n\n    \"Extra Trees\": ExtraTreesRegressor(\n        n_estimators=160,\n        random_state=42,\n        n_jobs=-1,\n        verbose=1\n    ),\n    XGBoost",
+    "mae": 4160.705078125,
+    "rmse": 5220.374699195451,
+    "r2": 0.9803920984268188
+  },
+  {
+    "model": "Ridge",
+    "mae": 5436.185061010914,
+    "rmse": 7125.723625670277,
+    "r2": 0.9634669647059281
+  },
+  {
+    "model": "Lasso",
+    "mae": 5436.282096648423,
+    "rmse": 7125.772519569594,
+    "r2": 0.9634664633537086
+  },
+  {
+    "model": "Linear Regression",
+    "mae": 5436.283072465395,
+    "rmse": 7125.772626075281,
+    "r2": 0.9634664622616081
+  }
+]

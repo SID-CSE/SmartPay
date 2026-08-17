@@ -1,5 +1,8 @@
 import json
 
+import json
+from pathlib import Path
+
 import joblib
 import pandas as pd
 import streamlit as st
@@ -30,11 +33,19 @@ def prepare_input_dataframe(frame):
     return frame
 
 
-MODEL_PATH = "best_salary_regressor.pkl"
+ROOT = Path(__file__).resolve().parent
+MODEL_PATH = ROOT / "best_salary_regressor.pkl"
 MODEL = joblib.load(MODEL_PATH)
 
-with open("model_metrics.json", "r", encoding="utf-8") as f:
+with open(ROOT / "model_metrics.json", "r", encoding="utf-8") as f:
     METRICS = json.load(f)
+
+comparison_path = ROOT / "model_comparison.json"
+if comparison_path.exists():
+    with open(comparison_path, "r", encoding="utf-8") as f:
+        MODEL_RESULTS = json.load(f)
+else:
+    MODEL_RESULTS = METRICS.get("model_results", [])
 
 st.set_page_config(page_title="SmartPay4 Salary Predictor", page_icon="💼", layout="wide")
 
@@ -99,7 +110,7 @@ st.markdown(
 
 st.sidebar.title("💾 Employee Profile")
 
-dataset = pd.read_csv("job_salary_prediction_dataset.csv")
+dataset = pd.read_csv(ROOT / "job_salary_prediction_dataset.csv")
 job_titles = sorted(dataset["job_title"].dropna().astype(str).unique().tolist())
 industries = sorted(dataset["industry"].dropna().astype(str).unique().tolist())
 locations = sorted(dataset["location"].dropna().astype(str).unique().tolist())
@@ -224,15 +235,34 @@ with tab3:
     col2.metric("RMSE", f"₹{METRICS['rmse']:,.2f}")
     col3.metric("R²", f"{METRICS['r2']:.4f}")
 
-    st.caption(f"Best model: {METRICS['best_model']} | Train rows: {METRICS['train_rows']} | Test rows: {METRICS['test_rows']}")
+    best_model = METRICS.get("best_model", "Trained salary regressor")
+    train_rows = METRICS.get("train_rows", METRICS.get("train_size", "N/A"))
+    test_rows = METRICS.get("test_rows", METRICS.get("test_size", "N/A"))
+    st.caption(f"Best model: {best_model} | Train rows: {train_rows} | Test rows: {test_rows}")
 
-    try:
-        st.image("model_comparison.png", caption="Model Comparison by R² Score", use_column_width=True)
-        st.image("actual_vs_predicted.png", caption="Actual vs Predicted Salary", use_column_width=True)
-        st.image("residuals_plot.png", caption="Residual Plot", use_column_width=True)
-        st.image("feature_importance.png", caption="Top Feature Importance", use_column_width=True)
-        st.image("correlation_heatmap.png", caption="Correlation Heatmap", use_column_width=True)
-    except Exception:
-        st.warning("Evaluation images are missing. Run the training script first.")
+    if MODEL_RESULTS:
+        comparison_display = pd.DataFrame(MODEL_RESULTS).rename(
+            columns={"model": "Model", "mae": "MAE", "rmse": "RMSE", "r2": "R²"}
+        )
+        st.subheader("Model comparison")
+        st.dataframe(comparison_display, hide_index=True, use_container_width=True)
+    else:
+        st.info("Model comparison results are unavailable. Run train_model.py to generate them.")
+
+    evaluation_charts = [
+        ("model_comparison.png", "Model Comparison by R² Score"),
+        ("salary_distribution.png", "Salary Distribution"),
+        ("salary_vs_experience.png", "Salary vs Experience"),
+        ("actual_vs_predicted.png", "Actual vs Predicted Salary"),
+        ("residuals_plot.png", "Residual Plot"),
+        ("feature_importance.png", "Top Feature Importance"),
+        ("correlation_heatmap.png", "Correlation Heatmap"),
+    ]
+    for filename, caption in evaluation_charts:
+        chart_path = ROOT / filename
+        if chart_path.exists():
+            st.image(str(chart_path), caption=caption, use_container_width=True)
+        else:
+            st.warning(f"Missing chart: {filename}. Run train_model.py to generate it.")
 
 st.markdown("<div class='footer'>SmartPay4 | Final-year ML portfolio project</div>", unsafe_allow_html=True)
