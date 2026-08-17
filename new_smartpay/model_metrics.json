@@ -1,9 +1,44 @@
 {
-  "mae": 4076.2664,
-  "rmse": 5109.601,
-  "r2": 0.9812,
-  "dataset": "job_salary_prediction_dataset.csv",
-  "samples": 250000,
-  "train_size": 200000,
-  "test_size": 50000
+  "best_model": "XGBoostRegressor",
+  "best_params": {
+    "model__subsample": 0.9,
+    "model__reg_lambda": 2.0,
+    "model__reg_alpha": 1.0,
+    "model__n_estimators": 350,
+    "model__max_depth": 6,
+    "model__learning_rate": 0.05,
+    "model__colsample_bytree": 1.0
+  },
+  "mae": 4100.8843,
+  "rmse": 5143.5315,
+  "r2": 0.981,
+  "dataset_rows": 250000,
+  "train_rows": 200000,
+  "test_rows": 50000,
+  "model_results": [
+    {
+      "model": "\n    \"Random Forest\": RandomForestRegressor(\n        n_estimators=120,\n        random_state=42,\n        n_jobs=-1,\n        verbose=1\n    ),\n\n    \"Extra Trees\": ExtraTreesRegressor(\n        n_estimators=160,\n        random_state=42,\n        n_jobs=-1,\n        verbose=1\n    ),\n    XGBoost",
+      "mae": 4160.705078125,
+      "rmse": 5220.374699195451,
+      "r2": 0.9803920984268188
+    },
+    {
+      "model": "Ridge",
+      "mae": 5436.185061010914,
+      "rmse": 7125.723625670277,
+      "r2": 0.9634669647059281
+    },
+    {
+      "model": "Lasso",
+      "mae": 5436.282096648423,
+      "rmse": 7125.772519569594,
+      "r2": 0.9634664633537086
+    },
+    {
+      "model": "Linear Regression",
+      "mae": 5436.283072465395,
+      "rmse": 7125.772626075281,
+      "r2": 0.9634664622616081
+    }
+  ]
 }

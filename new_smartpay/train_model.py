@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import warnings
+from pathlib import Path
 
 import joblib
 import matplotlib
@@ -25,6 +26,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_PATH = ROOT / "job_salary_prediction_dataset.csv"
 MODEL_PATH = ROOT / "best_salary_regressor.pkl"
 METRICS_PATH = ROOT / "model_metrics.json"
+MODEL_COMPARISON_PATH = ROOT / "model_comparison.json"
 
 REQUIRED_COLUMNS = [
     "job_title",
@@ -241,17 +243,17 @@ def main():
         "Ridge": Ridge(alpha=1.0),
         "Lasso": Lasso(alpha=0.001, max_iter=10000),
         "Random Forest": RandomForestRegressor(
-            n_estimators=300,
+            n_estimators=120,
             random_state=42,
             n_jobs=-1,
         ),
         "Extra Trees": ExtraTreesRegressor(
-            n_estimators=400,
+            n_estimators=160,
             random_state=42,
             n_jobs=-1,
         ),
         "XGBoost": XGBRegressor(
-            n_estimators=500,
+            n_estimators=250,
             learning_rate=0.05,
             max_depth=6,
             subsample=0.9,
@@ -288,9 +290,9 @@ def main():
     )
 
     param_dist = {
-        "model__n_estimators": [300, 500, 800],
+        "model__n_estimators": [150, 250, 350],
         "model__learning_rate": [0.03, 0.05, 0.1],
-        "model__max_depth": [4, 6, 8],
+        "model__max_depth": [4, 6],
         "model__subsample": [0.8, 0.9, 1.0],
         "model__colsample_bytree": [0.8, 0.9, 1.0],
         "model__reg_alpha": [0.0, 0.1, 1.0],
@@ -300,9 +302,9 @@ def main():
     search = RandomizedSearchCV(
         estimator=final_pipeline,
         param_distributions=param_dist,
-        n_iter=12,
+        n_iter=4,
         scoring="r2",
-        cv=3,
+        cv=2,
         random_state=42,
         n_jobs=-1,
     )
@@ -324,6 +326,7 @@ def main():
         "dataset_rows": int(len(df)),
         "train_rows": int(len(X_train)),
         "test_rows": int(len(X_test)),
+        "model_results": comparison_df.to_dict(orient="records"),
     }
 
     print("\nBest model metrics:\n", json.dumps(metrics, indent=2))
@@ -334,6 +337,8 @@ def main():
     joblib.dump(best_pipeline, MODEL_PATH)
     with open(METRICS_PATH, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
+    with open(MODEL_COMPARISON_PATH, "w", encoding="utf-8") as f:
+        json.dump(comparison_df.to_dict(orient="records"), f, indent=2)
 
     sample = pd.DataFrame(
         [{
