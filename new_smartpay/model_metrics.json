@@ -1,0 +1,9 @@
+{
+  "mae": 4076.2664,
+  "rmse": 5109.601,
+  "r2": 0.9812,
+  "dataset": "job_salary_prediction_dataset.csv",
+  "samples": 250000,
+  "train_size": 200000,
+  "test_size": 50000
+}

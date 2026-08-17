@@ -1,129 +1,118 @@
-# Internship-Project 
-# IBM-Skillsbuild--Edunet-Foundation--AICTE
-# 💼 Employee Salary Prediction
+# SmartPay4 - Salary Prediction Project
 
-Welcome to the **Employee Salary Predictor** project! This machine learning-powered app estimates an employee's salary based on their personal and professional attributes like age, experience, education, gender, and occupation. It provides a regression-based approach to predict the **exact salary value**.
+SmartPay4 is a final-year machine learning project built for salary prediction using realistic job market data. The project follows a professional ML workflow: dataset exploration, preprocessing, feature engineering, model comparison, hyperparameter tuning, evaluation, and a Streamlit deployment for interactive prediction.
 
----
+## Repository structure
 
-## 🚀 Project Demo
+```text
+SmartPay/
+├── old_smartpay/                 # legacy project backup and historical files
+│   └── ...
+├── new_smartpay/                 # active ML project used for Git push
+│   ├── app.py
+│   ├── train_model.py
+│   ├── employee salary prediction.ipynb
+│   ├── job_salary_prediction_dataset.csv
+│   ├── requirements.txt
+│   ├── best_salary_regressor.pkl
+│   ├── model_metrics.json
+│   ├── model_comparison.png
+│   ├── actual_vs_predicted.png
+│   ├── residuals_plot.png
+│   ├── feature_importance.png
+│   ├── correlation_heatmap.png
+│   ├── salary_distribution.png
+│   ├── salary_vs_experience.png
+│   └── ...
+├── README.md
+├── .git/
+└── .devcontainer/
+```
 
-👉 Try the Live Demo: https://smartpay4.streamlit.app/
+## Why this dataset was selected
 
-📽️ Demo Video: Coming Soon  
-📂 Model File: best_salary_regressor.pkl
+The active dataset is:
+- `new_smartpay/job_salary_prediction_dataset.csv`
 
----
+This is a proper regression problem because the target variable `salary` is continuous and the features represent employee and job profile information. The earlier dataset in the legacy folder was not suitable because it was designed for income classification rather than salary prediction.
 
-## 📌 Features
+## Project goals
 
-- Predict exact salary based on inputs
-- Regression model using XGBoost
-- Preprocessing pipeline (Numerical + Categorical handling)
-- Streamlit UI with dark mode and responsive layout
-- CSV Batch prediction support
-- Evaluation Metrics: R² Score, RMSE, Actual vs Predicted Plot
-- Model performance summary table
-- Visual insights for feature importance and predictions
+- Explore and understand the salary dataset
+- Clean and preprocess raw data
+- Engineer useful features such as `experience_level`, `skills_experience_ratio`, and `remote_binary`
+- Compare multiple regression algorithms
+- Tune the best-performing model using hyperparameter optimization
+- Evaluate the model using MAE, RMSE, and R²
+- Save the trained model and evaluation artifacts
+- Build an interactive Streamlit app with single and batch prediction
 
----
-
-## 🧠 Tech Stack & Tools
+## Tech stack
 
 - Python
-- Pandas, Scikit-learn, XGBoost
-- Streamlit – App UI
-- Matplotlib / Seaborn – Data Visualization
-- Joblib – Model Persistence
+- Pandas
+- NumPy
+- Matplotlib
+- Seaborn
+- scikit-learn
+- XGBoost
+- Streamlit
+- Joblib
 
----
+## Folder to use
 
-## 📊 Model & Dataset
+Use the active project folder for all work and final submission:
+- `new_smartpay/`
 
-- Target Variable: Employee Salary (Regression)
-- Features Used:
-  - Age
-  - Experience
-  - Gender
-  - Education
-  - Occupation
+The backup folder is retained only for reference:
+- `old_smartpay/`
 
-- Model: XGBoost Regressor
-- Pipeline: Includes preprocessing steps for encoding categorical variables and scaling numeric ones.
+## Workflow used in the project
 
----
+1. Load the salary dataset
+2. Inspect missing values and target distribution
+3. Create data visualizations and correlation checks
+4. Engineer additional features
+5. Train and compare multiple models
+6. Tune the selected model using RandomizedSearchCV
+7. Evaluate the final model on test data
+8. Save trained model and metrics artifacts
+9. Deploy prediction interface with Streamlit
 
-## 📁 Project Structure
+## Run the project
 
-.
-├── app.py                        # Streamlit application  
-├── best_salary_regressor.pkl    # Saved XGBoost model with preprocessing  
-├── model_performance_summary.csv # Metrics summary  
-├── input_sample.csv             # Example CSV for batch prediction  
-├── README.md                    # Project documentation  
-└── requirements.txt             # Required Python packages  
+```bash
+cd new_smartpay
+pip install -r requirements.txt
+python train_model.py
+streamlit run app.py
+```
 
----
+## Current model performance
 
-## ▶️ Run the App Locally
+The best tuned model is an XGBoost regressor trained on the salary dataset.
 
-1. Clone the Repository:
-   git clone https://github.com/your-username/employee-salary-prediction.git
-   cd employee-salary-prediction
+Verified metrics:
+- MAE: about ₹4,076.27
+- RMSE: about ₹5,109.60
+- R²: about 0.9812
 
-2. Create Virtual Environment:
-   python -m venv venv  
-   source venv/bin/activate  (or `venv\Scripts\activate` on Windows)
+## Final-year portfolio value
 
-3. Install Dependencies:
-   pip install -r requirements.txt
+This project is suitable for a resume because it demonstrates:
+- end-to-end ML workflow
+- data understanding and visualization
+- preprocessing and feature engineering
+- model comparison and tuning
+- regression evaluation and reporting
+- deployment-ready app with batch prediction
 
-4. Run the Streamlit App:
-   streamlit run app.py
+## Notes
 
----
+- The repo root is kept clean for Git push.
+- Old and irrelevant files are intentionally archived under `old_smartpay/`.
+- The active production-ready project is kept in `new_smartpay/`.
 
-## 🧪 Model Evaluation Metrics
+## Author
 
-| Metric     | Value   |
-|------------|---------|
-| R² Score   | 0.89+   |
-| RMSE       | ~2500   |
-| MAE        | ~1800   |
-
-Note: Actual performance may vary based on dataset used.
-
----
-
-## 📦 Batch Prediction (CSV)
-
-- Upload your CSV file via the app to predict salaries in bulk.
-- Required columns: Age, Experience, Gender, Education, Occupation
-
----
-
-## 🙋‍♂️ Author
-
-**Siddharth Kumar**   
-LinkedIn: https://linkedin.com/in/siddharthkumaryo
-
----
-
-## 📄 Development
-
-This project is developed under the Internship through AICTE - IBM SkillsBuild in collaboration with Edunet Foundation
-
----
-
-## 💡 Future Enhancements
-
-- Add salary trend graphs by age, experience
-- Expand dataset for better accuracy
-- Deploy on cloud (Streamlit Cloud, AWS, etc.)
-- Add authentication for multi-user access
-
----
-
-## 🙌 Support
-
-If you found this project useful, feel free to ⭐ the repository and share it!
+Siddharth Kumar
