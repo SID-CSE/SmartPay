@@ -1,5 +1,0 @@
- 
-Github link : https://github.com/SID-CSE/Internship-Project---IBM-Skillsbuild-Edunet-Foundation-AICTE
-
-Project link : https://smartpay4.streamlit.app/
-
