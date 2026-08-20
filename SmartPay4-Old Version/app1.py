@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import joblib
+from pathlib import Path
 
 # Load model
-model = joblib.load("SmartPay4-Old Version\best_salary_regressor.pkl")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "best_salary_regressor.pkl"
+model = joblib.load(MODEL_PATH)
 
 st.set_page_config(page_title="Employee Salary Predictor", page_icon="💼", layout="wide")
 st.markdown("""
