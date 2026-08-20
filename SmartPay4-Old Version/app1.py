@@ -83,7 +83,7 @@ gender = st.sidebar.selectbox("Select Gender", ["Male", "Female", "Other"])
 education = st.sidebar.selectbox("Select Education", [
     "10th", "12th", "Diploma", "Bachelors", "Masters", "PhD", "Professional Certification"
 ])
-all_occupations = sorted(pd.read_csv("DATASET.csv")["Occupation"].dropna().unique())
+all_occupations = sorted(pd.read_csv(BASE_DIR / "DATASET.csv")["Occupation"].dropna().unique())
 occupation = st.sidebar.selectbox("Select Occupation", all_occupations)
 experience = st.sidebar.selectbox("Select Experience (Years)", list(range(0, 41)))
 
