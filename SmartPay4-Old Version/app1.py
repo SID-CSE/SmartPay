@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 # Load model
-model = joblib.load("best_salary_regressor.pkl")
+model = joblib.load("SmartPay4-Old Version\best_salary_regressor.pkl")
 
 st.set_page_config(page_title="Employee Salary Predictor", page_icon="💼", layout="wide")
 st.markdown("""
