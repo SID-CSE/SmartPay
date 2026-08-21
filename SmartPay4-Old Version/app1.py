@@ -2,29 +2,31 @@ import pickle
 import pandas as pd
 import numpy as np
 import streamlit as st
+import pathlib
 
 # ============================================================================
 # LOAD MODEL AND PREPROCESSING OBJECTS
 # ============================================================================
+BASE_DIR = pathlib.Path(__file__).parent.resolve()
 
 @st.cache_resource
 def load_model_and_objects():
     """Load the trained model and preprocessing objects"""
     try:
         # Load the best model
-        with open('best_salary_prediction_model.pkl', 'rb') as f:
+        with open(BASE_DIR / 'best_salary_prediction_model.pkl', 'rb') as f:
             model = pickle.load(f)
         
         # Load label encoders
-        with open('label_encoders.pkl', 'rb') as f:
+        with open(BASE_DIR / 'label_encoders.pkl', 'rb') as f:
             label_encoders = pickle.load(f)
         
         # Load scaler
-        with open('feature_scaler.pkl', 'rb') as f:
+        with open(BASE_DIR / 'feature_scaler.pkl', 'rb') as f:
             scaler = pickle.load(f)
         
         # Load metadata
-        with open('model_metadata.pkl', 'rb') as f:
+        with open(BASE_DIR / 'model_metadata.pkl', 'rb') as f:
             metadata = pickle.load(f)
         
         return model, label_encoders, scaler, metadata
