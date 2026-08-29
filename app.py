@@ -1,620 +1,323 @@
 """
-SmartPay Streamlit Application
-Complete integration with the SmartPay salary prediction pipeline.
+SmartPay India -- Complete Prediction System
+Predict -> Contribute real data -> Model learns from it -> Transparent about unknowns.
 
-Run with: streamlit run app.py
+Run: streamlit run app.py
 """
-
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 
-import joblib
-import pandas as pd
 import streamlit as st
 import numpy as np
 
+from data_store import DataStore, hash_submitter
+from prediction_engine import PredictionEngine
+from reconciliation_engine import reconcile
+import retrain_pipeline
 
-# ============================================================================
-# Configuration & Paths
-# ============================================================================
+BASE_DIR = Path(__file__).resolve().parent
+ADMIN_PASSWORD = os.environ.get("SMARTPAY_ADMIN_PASSWORD", "changeme123")
 
-ROOT = Path(__file__).resolve().parent
+st.set_page_config(page_title="SmartPay India | Complete Prediction System", page_icon="\U0001F4BC",
+                    layout="wide", initial_sidebar_state="expanded")
 
-# Try multiple possible locations for model and data
-POSSIBLE_MODEL_PATHS = [
-    ROOT / "best_salary_regressor.pkl",
-    ROOT / "smartpay_project" / "models" / "best_salary_regressor.pkl",
-    ROOT / "models" / "best_salary_regressor.pkl",
-]
-
-POSSIBLE_DATA_PATHS = [
-    ROOT / "job_salary_prediction_dataset.csv",
-    ROOT / "smartpay_project" / "data" / "job_salary_prediction_dataset.csv",
-    ROOT / "data" / "job_salary_prediction_dataset.csv",
-]
-
-POSSIBLE_METRICS_PATHS = [
-    ROOT / "model_metrics.json",
-    ROOT / "smartpay_project" / "results" / "model_metrics.json",
-    ROOT / "results" / "model_metrics.json",
-]
-
-POSSIBLE_COMPARISON_PATHS = [
-    ROOT / "model_comparison.json",
-    ROOT / "smartpay_project" / "results" / "model_comparison.json",
-    ROOT / "results" / "model_comparison.json",
-]
-
-POSSIBLE_AUDIT_PATHS = [
-    ROOT / "model_audit.json",
-    ROOT / "smartpay_project" / "results" / "model_audit.json",
-    ROOT / "results" / "model_audit.json",
-]
-
-def find_file(possible_paths):
-    """Find first existing file from list of paths."""
-    for path in possible_paths:
-        if path.exists():
-            return path
-    return None
-
-MODEL_PATH = find_file(POSSIBLE_MODEL_PATHS)
-DATA_PATH = find_file(POSSIBLE_DATA_PATHS)
-METRICS_PATH = find_file(POSSIBLE_METRICS_PATHS)
-COMPARISON_PATH = find_file(POSSIBLE_COMPARISON_PATHS)
-AUDIT_PATH = find_file(POSSIBLE_AUDIT_PATHS)
-
-
-# ============================================================================
-# Page Configuration
-# ============================================================================
-
-st.set_page_config(
-    page_title="SmartPay | Salary Intelligence",
-    page_icon="💼",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-st.markdown(
-    """
-    <style>
-    .stApp { background: #0b1220; }
-    [data-testid="stHeader"] { background: rgba(11, 18, 32, 0.85); }
-    .hero { padding: 1.5rem 0 1rem; }
-    .hero h1 { color: #f4f8ff; font-size: 2.7rem; margin: 0; letter-spacing: -1px; }
-    .hero p { color: #9fb1c9; font-size: 1.05rem; margin-top: .35rem; }
-    .status-card { background: #132238; border: 1px solid #2f8ef6; border-radius: 14px; padding: 1rem 1.2rem; }
-    .status-card strong { color: #8be9fd; }
-    .status-card .verified { color: #7cf0bf; }
-    .status-card .pending { color: #ffd166; }
-    .section-card { background: #111c2e; border: 1px solid #243753; border-radius: 14px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
-    div[data-testid="stMetric"] { background: #132238; border: 1px solid #243753; border-radius: 12px; padding: .8rem; }
-    div[data-testid="stMetricValue"] { color: #f4f8ff; }
-    .result-box { background: linear-gradient(135deg, #1f4f77, #17304d); border: 1px solid #50b8ff; border-radius: 14px; padding: 1.4rem; text-align: center; color: white; font-size: 1.8rem; font-weight: 700; }
-    .small-note { color: #9fb1c9; font-size: .85rem; }
-    .error-box { background: #3a1f1f; border: 1px solid #ff6b6b; border-radius: 14px; padding: 1rem; }
-    .success-box { background: #1f3a2a; border: 1px solid #51cf66; border-radius: 14px; padding: 1rem; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-def load_json(path, default):
-    """Load JSON file safely."""
-    if path is None or not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        st.warning(f"Failed to load {path.name}: {e}")
-        return default
+st.markdown("""
+<style>
+.stApp { background: #0b1220; }
+[data-testid="stHeader"] { background: rgba(11, 18, 32, 0.85); }
+.hero h1 { color: #f4f8ff; font-size: 2.3rem; margin: 0; letter-spacing: -1px; }
+.hero p { color: #9fb1c9; font-size: 1.0rem; margin-top: .35rem; }
+.result-box { background: linear-gradient(135deg, #1f4f77, #17304d); border: 1px solid #50b8ff;
+              border-radius: 14px; padding: 1.4rem; text-align: center; color: white; font-size: 1.6rem; font-weight: 700; }
+.range-sub { font-size: 1rem; color: #cfe8ff; font-weight: 400; margin-top: .3rem; }
+.warn-box { background: #3a301f; border: 1px solid #ffb020; border-radius: 12px; padding: .9rem 1.1rem; color: #ffe1a8; }
+.info-box { background: #16283f; border: 1px solid #2f8ef6; border-radius: 12px; padding: .9rem 1.1rem; color: #cfe8ff; }
+div[data-testid="stMetric"] { background: #132238; border: 1px solid #243753; border-radius: 12px; padding: .8rem; }
+.badge-high { background:#1f3a2a; color:#7cf0bf; padding:2px 10px; border-radius:10px; font-size:.8rem; }
+.badge-medium { background:#3a301f; color:#ffd166; padding:2px 10px; border-radius:10px; font-size:.8rem; }
+.badge-low { background:#3a1f1f; color:#ff8b8b; padding:2px 10px; border-radius:10px; font-size:.8rem; }
+</style>
+""", unsafe_allow_html=True)
 
 
 @st.cache_resource
-def load_model():
-    """Load the trained model."""
-    if MODEL_PATH is None:
-        return None
-    try:
-        return joblib.load(MODEL_PATH)
-    except Exception as e:
-        st.error(f"Failed to load model: {e}")
-        return None
+def get_store():
+    return DataStore()
 
 
-@st.cache_data
-def load_dataset():
-    """Load the dataset."""
-    if DATA_PATH is None:
-        return None
-    try:
-        return pd.read_csv(DATA_PATH)
-    except Exception as e:
-        st.error(f"Failed to load dataset: {e}")
-        return None
+@st.cache_resource
+def get_engine(_store, artifact_version=0):
+    return PredictionEngine(data_store=_store)
 
 
-def prepare_input_dataframe(frame):
-    """Prepare input dataframe with feature engineering."""
-    prepared = frame.copy()
-    
-    # Clean categorical features
-    for column in ["job_title", "education_level", "industry", "company_size", "location", "remote_work"]:
-        if column in prepared.columns:
-            prepared[column] = prepared[column].astype("string").str.strip().str.title()
-    
-    # Create experience level bins
-    prepared["experience_level"] = pd.cut(
-        pd.to_numeric(prepared["experience_years"], errors='coerce').clip(lower=0),
-        bins=[0, 3, 7, 12, 20, float("inf")],
-        labels=["Junior", "Mid", "Experienced", "Senior", "Lead"],
-        right=False,
-    )
-    
-    # Create ratio features
-    experience = pd.to_numeric(prepared["experience_years"], errors='coerce').clip(lower=0)
-    skills = pd.to_numeric(prepared["skills_count"], errors='coerce').clip(lower=0)
-    certifications = pd.to_numeric(prepared["certifications"], errors='coerce').clip(lower=0)
-    
-    prepared["skills_experience_ratio"] = (skills + 1) / (experience + 1)
-    prepared["certifications_experience_ratio"] = (certifications + 1) / (experience + 1)
-    
-    # Binary remote work
-    prepared["remote_binary"] = prepared["remote_work"].map(
-        {"No": 0, "Hybrid": 1, "Yes": 1}
-    ).fillna(0)
-    
-    return prepared
+store = get_store()
+# artifact_version busts the cache after a retrain (see admin tab)
+engine = get_engine(store, st.session_state.get('artifact_version', 0))
 
+st.markdown("""
+<div class="hero">
+  <h1>\U0001F4BC SmartPay India \u2014 Complete Prediction System</h1>
+  <p>Predicts salary, learns from real contributions, and is honest when it doesn't know something.</p>
+</div>
+""", unsafe_allow_html=True)
 
-def predict(frame, model):
-    """Make predictions on a dataframe."""
-    if model is None:
-        st.error("Model not loaded. Please train the model first.")
-        return None
-    
-    try:
-        prepared = prepare_input_dataframe(frame)
-        predictions = model.predict(prepared)
-        return predictions
-    except Exception as e:
-        st.error(f"Prediction error: {e}")
-        return None
-
-
-def check_system_status():
-    """Check if all required files are available."""
-    status = {
-        'model': MODEL_PATH is not None,
-        'data': DATA_PATH is not None,
-        'metrics': METRICS_PATH is not None,
-        'comparison': COMPARISON_PATH is not None,
-        'audit': AUDIT_PATH is not None,
-    }
-    return status
-
-
-# ============================================================================
-# Main Application
-# ============================================================================
-
-# Check system status
-system_status = check_system_status()
-all_ready = all(system_status.values())
-
-if not all_ready:
-    st.markdown(
-        """
-        <div class="error-box">
-        <h3>⚠️ System Not Ready</h3>
-        <p>Some required files are missing. Please ensure:</p>
-        <ol>
-        <li>You've run the SmartPay Jupyter notebook completely</li>
-        <li>The <code>smartpay_project/</code> folder exists with models and results</li>
-        <li>All files are in the correct locations</li>
-        </ol>
-        <p><strong>Missing files:</strong></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    for component, ready in system_status.items():
-        status_icon = "✓" if ready else "✗"
-        status_text = "Ready" if ready else "Missing"
-        color = "green" if ready else "red"
-        st.markdown(f"<span style='color: {color}'>{status_icon} {component.title()}: {status_text}</span>", unsafe_allow_html=True)
-    
-    st.info("""
-    **Quick Fix:**
-    1. Run: `jupyter notebook employee_salary_prediction.ipynb`
-    2. Execute all cells (Ctrl+A, then Shift+Enter)
-    3. Refresh this Streamlit app
-    """)
-    st.stop()
-
-# Load all resources
-MODEL = load_model()
-DATASET = load_dataset()
-METRICS = load_json(METRICS_PATH, {})
-MODEL_RESULTS = load_json(COMPARISON_PATH, [])
-AUDIT = load_json(AUDIT_PATH, {})
-
-if MODEL is None or DATASET is None:
-    st.error("Failed to load critical resources. Please check the logs above.")
-    st.stop()
-
-# Hero Section
+meta = engine.metadata
 st.markdown(
-    """
-    <div class="hero">
-      <h1>💼 SmartPay Salary Intelligence</h1>
-      <p>Evidence-based salary prediction with model diagnostics, batch scoring, and transparent evaluation.</p>
-    </div>
-    """,
+    f"""<div class='info-box'>
+    Model R\u00b2: <strong>{meta.get('test_r2',0):.3f}</strong> &nbsp;|&nbsp;
+    Trained on <strong>{meta.get('n_training_rows',0):,}</strong> postings &nbsp;|&nbsp;
+    Knows <strong>{meta.get('known_companies_count',0):,}</strong> companies, <strong>{meta.get('known_titles_count',0):,}</strong> titles &nbsp;|&nbsp;
+    Community-verified contributions so far: <strong>{store.count_usable_contributions()}</strong>
+    </div>""",
     unsafe_allow_html=True,
 )
 
-# Status Card
-leakage_free = AUDIT.get("leakage_free", False)
-fit_diagnosis = AUDIT.get("fit_diagnosis", "Model training diagnostics available")
-model_name = METRICS.get("model", "Trained salary prediction model")
-
-status_label = "✓ Verified training" if leakage_free else "⚠ Audit pending"
-status_class = "verified" if leakage_free else "pending"
-
-st.markdown(
-    f"""
-    <div class='status-card'>
-    <strong class='{status_class}'>{status_label}</strong> &nbsp;|&nbsp; 
-    Model: <strong>{model_name}</strong> &nbsp;|&nbsp; 
-    {fit_diagnosis}
-    </div>
-    """,
-    unsafe_allow_html=True,
+tab_predict, tab_contribute, tab_admin, tab_quality, tab_about = st.tabs(
+    ["\U0001F50D Predict", "\u270D\ufe0f Contribute Real Data", "\U0001F510 Admin: Retrain", "\U0001F4CA Model Quality", "\u2139\ufe0f About"]
 )
 
 # ============================================================================
-# Sidebar: Candidate Profile Input
+# TAB 1: PREDICT
 # ============================================================================
-
-with st.sidebar:
-    st.title("💾 Candidate Profile")
-    st.caption("Configure a profile and generate an estimate.")
-    
-    # Extract unique values from dataset
-    job_titles = sorted(DATASET["job_title"].dropna().astype(str).unique())
-    industries = sorted(DATASET["industry"].dropna().astype(str).unique())
-    locations = sorted(DATASET["location"].dropna().astype(str).unique())
-    company_sizes = sorted(DATASET["company_size"].dropna().astype(str).unique())
-    education_levels = sorted(DATASET["education_level"].dropna().astype(str).unique())
-    remote_modes = ["No", "Hybrid", "Yes"]
-    
-    # Input widgets
-    job_title = st.selectbox("🎯 Job Title", job_titles, index=0)
-    experience_years = st.slider("📅 Experience (years)", 0, 40, 7)
-    education_level = st.selectbox("🎓 Education Level", education_levels, index=0)
-    skills_count = st.slider("🛠️ Skills Count", 0, 30, 12)
-    industry = st.selectbox("🏢 Industry", industries, index=0)
-    company_size = st.selectbox("📊 Company Size", company_sizes, index=0)
-    location = st.selectbox("🌍 Location", locations, index=0)
-    remote_work = st.selectbox("🏠 Remote Work", remote_modes, index=1)
-    certifications = st.slider("🏆 Certifications", 0, 15, 3)
-    
-    predict_clicked = st.button(
-        "🚀 Estimate Salary",
-        type="primary",
-        use_container_width=True
-    )
-    
-    st.divider()
-    st.caption("Tips: Adjust sliders and dropdowns, then click 'Estimate Salary' to see the prediction.")
-
-
-# ============================================================================
-# Profile Creation & Prediction
-# ============================================================================
-
-profile = pd.DataFrame([{
-    "job_title": job_title,
-    "experience_years": experience_years,
-    "education_level": education_level,
-    "skills_count": skills_count,
-    "industry": industry,
-    "company_size": company_size,
-    "location": location,
-    "remote_work": remote_work,
-    "certifications": certifications,
-}])
-
-if predict_clicked:
-    prediction = predict(profile, MODEL)
-    if prediction is not None:
-        st.session_state["latest_prediction"] = float(prediction[0])
-        st.session_state["latest_profile"] = {
-            "job_title": job_title,
-            "experience_years": experience_years,
-            "location": location,
-            "company_size": company_size,
-        }
-
-if "latest_prediction" in st.session_state:
-    st.markdown(
-        f"""
-        <div class='result-box'>
-        Estimated Annual Salary<br>
-        ₹{st.session_state['latest_prediction']:,.2f}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    if "latest_profile" in st.session_state:
-        prof = st.session_state["latest_profile"]
-        st.caption(
-            f"📊 {prof['job_title']} with {prof['experience_years']} years "
-            f"at {prof['company_size']} in {prof['location']}"
-        )
-
-st.divider()
-
-# ============================================================================
-# Tabs: Prediction, Batch Scoring, Quality
-# ============================================================================
-
-tab_predict, tab_batch, tab_quality, tab_info = st.tabs([
-    "🔍 Prediction Workspace",
-    "📂 Batch Scoring",
-    "📊 Model Quality",
-    "ℹ️ Information"
-])
-
-# --- TAB 1: Prediction Workspace ---
 with tab_predict:
-    col_left, col_right = st.columns([1.1, 1])
-    
-    with col_left:
-        st.subheader("Current Profile")
-        st.dataframe(profile, use_container_width=True, hide_index=True)
-    
-    with col_right:
-        st.subheader("How to Use")
-        st.info(
-            """
-            ✓ Set up a candidate profile in the sidebar
-            ✓ Click **Estimate Salary** to generate prediction
-            ✓ Compare with market data before decisions
-            ✓ Review model quality in the "Model Quality" tab
-            
-            **Note:** Estimates are decision support tools, not absolute predictions.
-            """
-        )
-        st.caption(
-            "Feature engineering and categorical handling are applied by the same "
-            "pipeline used during model training, ensuring consistency."
-        )
-
-
-# --- TAB 2: Batch Scoring ---
-with tab_batch:
-    st.subheader("Score Multiple Candidates")
-    st.caption("Upload a CSV with the nine required columns to score all candidates at once.")
-    
-    required_columns = [
-        "job_title", "experience_years", "education_level", "skills_count",
-        "industry", "company_size", "location", "remote_work", "certifications"
-    ]
-    
-    col1, col2 = st.columns([2, 1])
-    
+    st.subheader("Get a Salary Estimate")
+    col1, col2 = st.columns(2)
     with col1:
-        uploaded = st.file_uploader("📤 Upload Candidate CSV", type=["csv"])
-    
-    if uploaded:
-        try:
-            batch = pd.read_csv(uploaded)
-            missing = sorted(set(required_columns) - set(batch.columns))
-            
-            if missing:
-                st.error(f"❌ Missing required columns: {', '.join(missing)}")
-                st.info(f"Required columns: {', '.join(required_columns)}")
-            else:
-                st.success(f"✓ CSV validated ({len(batch):,} candidates)")
-                
-                # Make predictions
-                predictions = predict(batch, MODEL)
-                
-                if predictions is not None:
-                    scored = batch.copy()
-                    scored["PredictedSalary"] = predictions
-                    
-                    # Show statistics
-                    stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
-                    with stats_col1:
-                        st.metric("Total Candidates", f"{len(scored):,}")
-                    with stats_col2:
-                        st.metric("Avg Salary", f"₹{scored['PredictedSalary'].mean():,.0f}")
-                    with stats_col3:
-                        st.metric("Min Salary", f"₹{scored['PredictedSalary'].min():,.0f}")
-                    with stats_col4:
-                        st.metric("Max Salary", f"₹{scored['PredictedSalary'].max():,.0f}")
-                    
-                    # Show data
-                    st.subheader("Predictions Preview")
-                    st.dataframe(scored.head(25), use_container_width=True, hide_index=True)
-                    
-                    # Download button
-                    csv_data = scored.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "📥 Download Scored CSV",
-                        csv_data,
-                        "smartpay_predictions.csv",
-                        "text/csv",
-                        type="primary",
-                        use_container_width=True
-                    )
-        
-        except Exception as e:
-            st.error(f"Error processing CSV: {e}")
+        p_title = st.text_input("Job Title", "Software Engineer", key="p_title")
+        p_company = st.text_input("Company Name", "", key="p_company",
+                                    help="Leave blank if unknown -- we'll use role/experience/location only.")
+        c1, c2 = st.columns(2)
+        p_exp_min = c1.number_input("Min experience (yrs)", 0, 40, 3, key="p_expmin")
+        p_exp_max = c2.number_input("Max experience (yrs)", 0, 40, 6, key="p_expmax")
+    with col2:
+        p_location = st.text_input("Location", "Bengaluru", key="p_location")
+        p_skills = st.text_area("Skills (comma-separated)", "python, sql, aws", key="p_skills")
+        has_rating = st.checkbox("I know the company's rating", value=False, key="p_hasrating")
+        p_rating = st.slider("Company rating", 1.0, 5.0, 3.9, 0.1, key="p_rating") if has_rating else None
+        p_reviews = st.number_input("Review count", 0, 200000, 500, key="p_reviews") if has_rating else 0
 
+    if st.button("\U0001F680 Predict Salary", type="primary", use_container_width=True):
+        profile = {
+            'title': p_title, 'company_name': p_company or 'Unknown Company',
+            'experience_min': p_exp_min, 'experience_max': max(p_exp_max, p_exp_min),
+            'location': p_location, 'skills': p_skills,
+            'company_rating': p_rating, 'company_reviews': p_reviews,
+        }
+        with st.spinner("Reconciling model, web search, and other signals..."):
+            result = reconcile(profile, engine, use_web_search=True)
+        st.session_state['last_result'] = result
+        st.session_state['last_profile'] = profile
 
-# --- TAB 3: Model Quality ---
-with tab_quality:
-    st.subheader("Model Quality & Governance")
-    
-    # Key Metrics
-    st.markdown("#### 📈 Performance Metrics")
-    metric_cols = st.columns(5)
-    
-    test_r2 = METRICS.get("test_metrics", {}).get("R2", METRICS.get("r2", 0))
-    test_mae = METRICS.get("test_metrics", {}).get("MAE", METRICS.get("mae", 0))
-    test_rmse = METRICS.get("test_metrics", {}).get("RMSE", METRICS.get("rmse", 0))
-    test_mape = METRICS.get("test_metrics", {}).get("MAPE", METRICS.get("mape", 0))
-    
-    metric_cols[0].metric("Test R²", f"{test_r2:.4f}", help="Variance explained by model")
-    metric_cols[1].metric("MAE", f"₹{test_mae:,.0f}", help="Mean absolute error")
-    metric_cols[2].metric("RMSE", f"₹{test_rmse:,.0f}", help="Root mean squared error")
-    metric_cols[3].metric("MAPE", f"{test_mape * 100:.2f}%", help="Mean absolute % error")
-    metric_cols[4].metric("Samples", f"{METRICS.get('train_rows', 0):,}", help="Training samples")
-    
-    col_left, col_right = st.columns(2)
-    
-    # Leakage Audit
-    with col_left:
-        st.markdown("#### 🔒 Leakage Audit")
-        checks = AUDIT.get("leakage_checks", {})
-        
-        if leakage_free is True:
-            st.success("✓ No data leakage detected")
-            st.json(checks)
-        else:
-            st.warning("⚠ Run the training notebook to generate audit")
-    
-    # Generalization
-    with col_right:
-        st.markdown("#### 📊 Generalization")
-        st.write(f"**Diagnosis:** {fit_diagnosis}")
-        
-        train_r2 = METRICS.get("train_metrics", {}).get("R2", METRICS.get("train_r2", 0))
-        st.metric("Train R²", f"{train_r2:.4f}")
-        
-        gap = train_r2 - test_r2
-        st.metric("Generalization Gap", f"{gap:.4f}")
-        
-        cv = AUDIT.get("cross_validation", {})
-        cv_r2_mean = cv.get("cv_r2_mean", 0)
-        cv_r2_std = cv.get("cv_r2_std", 0)
-        st.write(f"5-Fold CV R²: **{cv_r2_mean:.4f} ± {cv_r2_std:.4f}**")
-    
-    # Model Comparison
-    st.markdown("#### 🔀 Candidate Model Comparison")
-    if isinstance(MODEL_RESULTS, list) and len(MODEL_RESULTS) > 0:
-        comparison_df = pd.DataFrame(MODEL_RESULTS)
-        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-        
-        if {"Model", "CV R2"}.issubset(set(comparison_df.columns)) or {"model", "cv_r2"}.issubset(set(comparison_df.columns)):
-            col_name = "CV R2" if "CV R2" in comparison_df.columns else "cv_r2"
-            model_col = "Model" if "Model" in comparison_df.columns else "model"
-            st.bar_chart(comparison_df.set_index(model_col)[col_name])
-    else:
-        st.info("Model comparison data available after training.")
-    
-    # Learning Curve
-    learning_curve_data = AUDIT.get("learning_curve", [])
-    if learning_curve_data:
-        st.markdown("#### 📈 Learning Curve")
-        learning_df = pd.DataFrame(learning_curve_data)
-        if "training_rows" in learning_df.columns:
-            learning_df = learning_df.set_index("training_rows")
-        st.line_chart(learning_df)
-    
-    # Data Split Information
-    st.markdown("#### 📋 Dataset Information")
-    train_rows = METRICS.get("train_rows", "N/A")
-    test_rows = METRICS.get("test_rows", "N/A")
-    dataset_rows = METRICS.get("dataset_rows", "N/A")
-    
-    if all(isinstance(v, int) for v in [train_rows, test_rows, dataset_rows]):
-        st.caption(
-            f"🔹 Total Rows: {dataset_rows:,} | "
-            f"🔹 Training: {train_rows:,} (80%) | "
-            f"🔹 Test: {test_rows:,} (20%)"
-        )
-    else:
-        st.info("Training metadata will appear after running the Jupyter notebook.")
+    if 'last_result' in st.session_state:
+        r = st.session_state['last_result']
+        lpa = lambda v: v / 100000
+        st.markdown(
+            f"""<div class='result-box'>Rs {lpa(r['range_low_inr']):.1f} - {lpa(r['range_high_inr']):.1f} Lacs PA
+            <div class='range-sub'>Reconciled estimate: Rs {lpa(r['point_estimate_inr']):.1f} LPA</div></div>""",
+            unsafe_allow_html=True)
 
+        badge_class = {'high':'badge-high','medium':'badge-medium','low':'badge-low'}[r['confidence']]
+        st.markdown(f"<br><span class='{badge_class}'>Confidence: {r['confidence'].upper()}</span> "
+                    f"&nbsp; <span style='color:#9fb1c9'>({len(r['signals_used'])} signal(s) combined)</span>",
+                    unsafe_allow_html=True)
 
-# --- TAB 4: Information ---
-with tab_info:
-    st.subheader("About SmartPay")
-    
-    col_left, col_right = st.columns(2)
-    
-    with col_left:
-        st.markdown("""
-        #### 🎯 What is SmartPay?
-        
-        SmartPay is an end-to-end machine learning project that predicts employee salaries based on:
-        
-        - **Job & Industry**: Role type and sector
-        - **Experience**: Years in the field
-        - **Education**: Degree level
-        - **Skills**: Technical and professional competencies
-        - **Company**: Size and location
-        - **Work Setup**: Remote/Hybrid/On-site
-        
-        #### 🚀 Features
-        
-        ✓ Single & batch predictions
-        ✓ Model quality diagnostics
-        ✓ Feature importance analysis
-        ✓ Leakage-free pipeline
-        ✓ Reproducible results
-        """)
-    
-    with col_right:
-        st.markdown("""
-        #### 🛠️ Technical Stack
-        
-        - **ML Framework**: Scikit-learn, XGBoost
-        - **Data Processing**: Pandas, NumPy
-        - **Visualization**: Streamlit
-        - **Deployment**: Docker, Cloud-ready
-        
-        #### 📖 How to Use
-        
-        1. **Single Prediction**: Use sidebar to configure profile
-        2. **Batch Scoring**: Upload CSV with multiple candidates
-        3. **Quality Check**: Review model metrics and diagnostics
-        
-        #### ⚠️ Important Notes
-        
-        - Predictions are decision support, not absolute truth
-        - Always validate against current market data
-        - Model trained on historical data (may drift over time)
-        - Periodically retrain with new salary information
-        """)
-    
-    st.divider()
-    
-    st.markdown("#### 📚 Documentation")
-    st.info("""
-    For more information:
-    - **Setup Guide**: `SETUP_GUIDE.md`
-    - **Project Summary**: `PROJECT_SUMMARY.md`
-    - **README**: `README.md`
-    - **Training Notebook**: `employee_salary_prediction.ipynb`
-    """)
-    
-    st.divider()
+        if r['disagreement_detected']:
+            st.markdown(
+                "<div class='warn-box'>\u26a0\ufe0f Our signals disagreed noticeably on this one "
+                "(e.g. the model's baseline estimate and a fuzzy-matched or web-sourced figure pointed "
+                "to different numbers) -- the range above has been widened to reflect that extra "
+                "uncertainty honestly, rather than averaging the disagreement away.</div>",
+                unsafe_allow_html=True)
+
+        with st.expander("\U0001F50E How we calculated this \u2014 every signal that went in"):
+            for s in r['signals_used']:
+                weight_pct = s['weight'] / sum(x['weight'] for x in r['signals_used']) * 100
+                st.write(f"**{s['source'].replace('_',' ').title()}** (weight: {weight_pct:.0f}%) \u2014 "
+                         f"Rs {lpa(float(np.expm1(s['log_value']))):.1f} LPA \u2014 {s['detail']}")
+            if r.get('industry_guessed') and r['industry_guessed'] != 'Other/Unknown':
+                st.caption(f"Company classified as: {r['industry_guessed']} (guessed from company name)")
+            if r.get('web_search_result') and not r['web_search_result'].get('available'):
+                st.caption(f"Web search: {r['web_search_result']['message']}")
+
+        st.divider()
+        st.caption("Think this estimate is off? Help improve it \u2192 go to **Contribute Real Data**.")
+
+# ============================================================================
+# TAB 2: CONTRIBUTE
+# ============================================================================
+with tab_contribute:
+    st.subheader("Submit a Real Salary Data Point")
     st.caption(
-        f"SmartPay Salary Intelligence • Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')} • "
-        "Use predictions responsibly and validate against current market information."
+        "This directly improves the model. New submissions are sanity-checked automatically, then "
+        "immediately blended into predictions for that company/title. An admin can trigger a full "
+        "model retrain periodically to bake verified contributions permanently into the core model."
+    )
+
+    with st.form("contribute_form"):
+        c1, c2 = st.columns(2)
+        with c1:
+            f_company = st.text_input("Company Name*")
+            f_title = st.text_input("Job Title*")
+            f_exp = st.number_input("Years of experience (yours, at this role)*", 0.0, 40.0, 3.0, 0.5)
+        with c2:
+            f_location = st.text_input("Location*", "Bengaluru")
+            f_skills = st.text_input("Key skills (comma-separated)")
+            f_remote = st.selectbox("Work mode", ["On-site", "Hybrid", "Remote"])
+        f_salary_lpa = st.number_input("Actual annual salary (Lacs PA)*", 0.5, 500.0, 10.0, 0.5)
+        f_email = st.text_input("Email (optional, only used for spam-prevention hashing, never stored/shown)")
+        submitted = st.form_submit_button("Submit Contribution", type="primary", use_container_width=True)
+
+    if submitted:
+        if not (f_company and f_title and f_location):
+            st.error("Company, Title, and Location are required.")
+        else:
+            actual_salary_inr = f_salary_lpa * 100000
+            profile_for_check = {
+                'title': f_title, 'company_name': f_company, 'experience_min': f_exp, 'experience_max': f_exp,
+                'location': f_location, 'skills': f_skills, 'company_rating': None, 'company_reviews': 0,
+            }
+            predicted = engine.predict(profile_for_check)
+            status = store.add_contribution(
+                company_name=f_company, title=f_title, experience_years=f_exp, location=f_location,
+                skills=f_skills, remote_work=f_remote, actual_salary=actual_salary_inr,
+                model_predicted_at_submit=predicted['point_estimate_inr'],
+                submitter_hash=hash_submitter(f_email) if f_email else None,
+            )
+            if status == 'verified':
+                store.refresh_lookup_overrides()  # <-- actually apply the blend, immediately
+                st.success(
+                    f"\u2705 Thank you! Your submission passed our sanity check and is already blended into "
+                    f"predictions for '{f_company}' / '{f_title}'."
+                )
+            else:
+                st.warning(
+                    f"\u26a0\ufe0f Submitted, but this differs a lot from our current estimate "
+                    f"(predicted Rs {predicted['point_estimate_inr']/100000:.1f}L vs your Rs {f_salary_lpa:.1f}L), "
+                    "so it's flagged for manual review before being used. Thank you regardless!"
+                )
+            get_engine.clear()  # refresh engine so blended lookups reflect the new submission immediately
+            st.session_state['artifact_version'] = st.session_state.get('artifact_version', 0) + 1
+
+    st.divider()
+    st.caption(f"Total contributions so far: {len(store.get_contributions())} "
+               f"({store.count_usable_contributions()} verified and already influencing predictions)")
+
+# ============================================================================
+# TAB 3: ADMIN
+# ============================================================================
+with tab_admin:
+    st.subheader("Admin: Review & Retrain")
+    pwd = st.text_input("Admin password", type="password")
+    if pwd != ADMIN_PASSWORD:
+        st.info("Enter the admin password to review contributions and trigger a full retrain.")
+    else:
+        all_contribs = store.get_contributions()
+        st.write(f"**{len(all_contribs)} total contributions** "
+                 f"({sum(1 for c in all_contribs if c['status']=='verified')} verified, "
+                 f"{sum(1 for c in all_contribs if c['status']=='flagged_review')} flagged for review)")
+
+        flagged = [c for c in all_contribs if c['status'] == 'flagged_review']
+        if flagged:
+            st.markdown("#### Flagged for Review")
+            for c in flagged:
+                cols = st.columns([3, 1, 1])
+                cols[0].write(f"{c['title']} @ {c['company_name']} ({c['location']}) \u2014 "
+                               f"claimed Rs {c['actual_salary']/100000:.1f}L vs model's "
+                               f"Rs {(c['model_predicted_at_submit'] or 0)/100000:.1f}L")
+                if cols[1].button("Approve", key=f"appr_{c['id']}"):
+                    store.update_contribution_status(c['id'], 'verified')
+                    store.refresh_lookup_overrides()  # apply blend immediately on manual approval too
+                    get_engine.clear()
+                    st.session_state['artifact_version'] = st.session_state.get('artifact_version', 0) + 1
+                    st.rerun()
+                if cols[2].button("Reject", key=f"rej_{c['id']}"):
+                    store.delete_contribution(c['id'])
+                    st.rerun()
+
+        st.divider()
+        st.markdown("#### Live Web Search Status (Tavily)")
+        from external_lookup import _get_api_key, try_external_lookup
+        key = _get_api_key()
+        if key:
+            st.success(f"\u2705 Tavily API key detected ({key[:8]}...). Live lookup is active for unknown companies.")
+        else:
+            st.warning(
+                "\u26a0\ufe0f No Tavily API key found. Get a free one (1,000 searches/month, no card) at "
+                "https://app.tavily.com, then set `TAVILY_API_KEY` as an environment variable or in "
+                "`.streamlit/secrets.toml`."
+            )
+        test_col1, test_col2 = st.columns([2, 1])
+        test_query_profile = test_col1.text_input("Test lookup -- company name", "Zoho Corporation")
+        if test_col2.button("Run test search", use_container_width=True):
+            with st.spinner("Searching..."):
+                test_result = try_external_lookup({
+                    'title': 'Software Engineer', 'company_name': test_query_profile,
+                    'experience_min': 3, 'experience_max': 5, 'location': 'Chennai',
+                })
+            st.json(test_result)
+
+        st.divider()
+        st.markdown("#### Trigger Full Retrain")
+        st.caption("Rebuilds the model from [original data + all verified contributions]. Takes ~1-2 minutes.")
+        if st.button("\U0001F504 Retrain Now", type="primary"):
+            with st.spinner("Retraining..."):
+                result = retrain_pipeline.retrain(store)
+            if result.get('skipped'):
+                st.warning(result['reason'])
+            else:
+                st.success(f"Retrained on {result['n_training_rows']:,} rows "
+                           f"({result['n_contributions_included']} from community). "
+                           f"New Test R\u00b2 = {result['test_r2']:.4f}")
+                get_engine.clear()
+                st.session_state['artifact_version'] = st.session_state.get('artifact_version', 0) + 1
+
+        st.divider()
+        st.markdown("#### Model Version History")
+        history = store.get_model_history()
+        if history:
+            st.dataframe(history, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No retrains yet -- still running the original notebook-trained model.")
+
+# ============================================================================
+# TAB 4: MODEL QUALITY
+# ============================================================================
+with tab_quality:
+    st.subheader("Model Quality")
+    m = st.columns(4)
+    m[0].metric("Test R\u00b2", f"{meta.get('test_r2',0):.4f}")
+    m[1].metric("Test MAE", f"Rs {meta.get('test_mae',0)/100000:.2f} L")
+    m[2].metric("Test RMSE", f"Rs {meta.get('test_rmse',0)/100000:.2f} L")
+    m[3].metric("Quantile coverage", f"{meta.get('quantile_coverage',0)*100:.1f}%")
+    st.caption(f"Model version: {meta.get('model_version','v1')} | Training rows: {meta.get('n_training_rows',0):,}")
+
+# ============================================================================
+# TAB 5: ABOUT
+# ============================================================================
+with tab_about:
+    st.subheader("How This System Works")
+    st.markdown("""
+    **1. Predict** \u2014 uses a LightGBM model trained on real Naukri.com postings, with
+    company/title/location target-encoding for known entities.
+
+    **2. Contribute** \u2014 submit a real salary data point. It's sanity-checked against the current
+    prediction; close matches are auto-verified and *immediately* blended into future predictions for
+    that company/title (no retrain needed). Large deviations are queued for admin review instead of
+    being silently trusted (basic spam/error protection).
+
+    **3. Admin Retrain** \u2014 periodically, an admin can fully retrain the model on
+    [original data + all verified contributions], permanently improving the core model rather than
+    just the lookup blend.
+
+    **4. Unknown companies/titles** \u2014 live web search is **intentionally not enabled** in this
+    deployment (see `external_lookup.py` for how to wire one in later). When something is unrecognized,
+    the app says so explicitly and falls back to a role/experience/location-only estimate rather than
+    pretending to know more than it does.
+    """)
+    st.warning(
+        "Deployment note: contributions are stored in a local SQLite file. If deployed to a platform "
+        "with an ephemeral filesystem (e.g. Streamlit Community Cloud), this data will NOT persist "
+        "across restarts -- swap `data_store.py`'s internals for a real cloud database first."
     )
