@@ -1,320 +1,78 @@
-# SmartPay: Employee Salary Prediction
-
-A production-ready machine learning project that predicts employee salaries based on professional profile information.
-
-## 📋 Project Overview
-
-**SmartPay** is a supervised regression model that estimates employee compensation from:
-- Job title and industry
-- Experience level and education
-- Technical skills and certifications
-- Company size and work arrangement
-
-### Key Features
-
-✅ **End-to-End Pipeline**
-- Data validation and quality checks
-- Feature engineering with domain knowledge
-- Automated preprocessing and encoding
-- Model selection and hyperparameter tuning
-
-✅ **Comprehensive Evaluation**
-- Cross-validation with multiple metrics
-- Baseline comparison
-- Overfitting/underfitting analysis
-- Learning curves and error analysis
-
-✅ **Production Ready**
-- Serialized models with versioning
-- Feature importance analysis
-- Residual diagnostics
-- Deployment-ready inference
-
-✅ **No Data Leakage**
-- Proper train/test split
-- Pipeline-based preprocessing
-- Validated feature engineering
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Clone or download the project
-cd smartpay-salary-prediction
-
-# Create virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### Running the Notebook
-
-```bash
-# Start Jupyter
-jupyter notebook employee_salary_prediction.ipynb
-```
-
-The notebook will:
-1. Load your dataset (auto-detects location)
-2. Perform comprehensive data validation
-3. Train and compare 6 different models
-4. Tune the best model
-5. Save artifacts for deployment
-6. Generate example predictions
-
-### Dataset Format
-
-Your CSV file should contain these columns:
-
-| Column | Type | Example |
-|--------|------|---------|
-| job_title | string | Software Engineer |
-| experience_years | integer | 7 |
-| education_level | string | Bachelor |
-| skills_count | integer | 12 |
-| industry | string | Technology |
-| company_size | string | Medium |
-| location | string | India |
-| remote_work | string | Hybrid / Yes / No |
-| certifications | integer | 3 |
-| salary | integer | 85000 |
-
-## 📊 Models Evaluated
-
-| Model | Type | Speed | Accuracy | Best For |
-|-------|------|-------|----------|----------|
-| Linear Regression | Linear | ⚡ Fast | Baseline | Interpretability |
-| Ridge | Linear | ⚡ Fast | Good | Regularized linear |
-| Lasso | Linear | ⚡ Fast | Good | Feature selection |
-| Random Forest | Tree | ⚡⚡ Medium | Excellent | Balance |
-| Extra Trees | Tree | ⚡⚡ Medium | Excellent | Speed |
-| **XGBoost** | Boosting | ⚡⚡⚡ Fast | Best | Top performance |
-
-The notebook automatically selects the best model based on cross-validation R².
-
-## 📁 Project Structure
-
-```
-smartpay_project/
-├── models/
-│   ├── best_salary_regressor.pkl      # Trained pipeline
-│   └── feature_encoder.pkl             # Fitted encoder
-├── data/
-│   └── job_salary_prediction_dataset.csv
-├── results/
-│   ├── model_metrics.json              # Performance metrics
-│   ├── model_comparison.json           # Benchmark results
-│   └── model_audit.json                # Data quality audit
-├── employee_salary_prediction.ipynb
-├── salary_predictor.py                 # Inference API
-├── requirements.txt
-└── README.md
-```
-
-## 🔍 Key Metrics
-
-### Performance Indicators
-
-- **R² Score**: Explains what % of salary variance the model captures
-- **MAE**: Average prediction error in rupees
-- **RMSE**: Root mean squared error (penalizes large errors)
-- **MAPE**: Mean absolute percentage error
-
-### Example Results
-
-```
-Test Set Performance:
-  R² Score: 0.8234
-  MAE: ₹8,500
-  RMSE: ₹12,300
-  MAPE: 10.5%
-
-Improvement over baseline:
-  +0.62 R²
-  ₹32,000 MAE reduction
-```
-
-## 🛠️ Usage
-
-### Option 1: Run the Jupyter Notebook
-
-The notebook is self-contained and includes everything:
-- Data loading and validation
-- Model training and evaluation
-- Visualization and analysis
-- Model saving and testing
-
-### Option 2: Use the Python Inference Script
-
-```python
-from salary_predictor import SalaryPredictor
-
-# Load the trained model
-predictor = SalaryPredictor('smartpay_project/models/best_salary_regressor.pkl')
-
-# Make predictions
-prediction = predictor.predict({
-    'job_title': 'Software Engineer',
-    'experience_years': 7,
-    'education_level': 'Bachelor',
-    'skills_count': 12,
-    'industry': 'Technology',
-    'company_size': 'Medium',
-    'location': 'India',
-    'remote_work': 'Hybrid',
-    'certifications': 3
-})
-
-print(f"Predicted Salary: ₹{prediction:,.2f}")
-```
-
-### Option 3: API Deployment
-
-```bash
-python salary_predictor.py
-# Server runs at http://localhost:5000
-```
-
-**POST /predict**
-```json
-{
-  "job_title": "Software Engineer",
-  "experience_years": 7,
-  "education_level": "Bachelor",
-  "skills_count": 12,
-  "industry": "Technology",
-  "company_size": "Medium",
-  "location": "India",
-  "remote_work": "Hybrid",
-  "certifications": 3
-}
-```
-
-## 📈 Understanding the Results
-
-### Learning Curves
-The notebook generates learning curves showing:
-- Training performance increasing with more data ✓
-- Validation performance approaching training performance
-- The generalization gap (difference between train and validation)
-
-### Feature Importance
-For tree-based models (Random Forest, XGBoost):
-- Shows which features contribute most to predictions
-- Useful for business insights
-- **Does NOT imply causation**
-
-### Residual Analysis
-Reveals:
-- Systematic bias (model consistently over/under-predicting)
-- Heteroscedasticity (errors varying with salary level)
-- Outliers (individuals with unusual salary patterns)
-
-## ⚠️ Important Notes
-
-### Data Leakage Prevention
-
-✅ **What we did right:**
-- Split train/test BEFORE any preprocessing
-- Fit all transformers on training data only
-- Feature engineering happens inside the pipeline
-- No information from test set used during training
-
-### Assumptions
-
-The model assumes:
-- Salary depends on the provided features
-- No significant temporal trends
-- Relationships are relatively stable
-- Training data is representative
-
-### Limitations
-
-- Predictions are estimates, not guarantees
-- Real salary depends on many unmeasured factors (negotiation, location nuances, etc.)
-- Model trained on historical data (may become outdated)
-- Feature importance doesn't prove causation
-
-## 📊 Configuration
-
-Edit these in the notebook to customize:
-
-```python
-RANDOM_STATE = 42      # Seed for reproducibility
-TEST_SIZE = 0.20       # 80-20 train-test split
-CV_SPLITS = 5          # 5-fold cross-validation
-VERBOSE = True         # Print detailed output
-```
-
-## 🔄 Model Retraining
-
-To retrain with new data:
-
-1. Place updated CSV in `data/` folder
-2. Run the notebook end-to-end
-3. New models are automatically saved to `models/` folder
-4. Old models are overwritten
-
-For production:
-- Archive old models with timestamps
-- Implement A/B testing before full deployment
-- Monitor prediction performance continuously
-
-## 🐛 Troubleshooting
-
-### "Dataset not found"
-- Ensure CSV is in current directory or `data/` folder
-- Check file naming: `job_salary_prediction_dataset.csv`
-
-### "Module not found"
-```bash
-pip install -r requirements.txt
-```
-
-### VS Code Notebook Not Opening
-- Update VS Code and Python extension
-- The fixed notebook uses standard JSON format (✓ compatible)
-- Try: File → Revert to Saved
-
-### Slow Model Training
-- Reduce CV_SPLITS to 3
-- Reduce train data size for testing
-- Use fewer candidates in benchmarking
-
-## 📚 Learning Resources
-
-- [Scikit-learn Documentation](https://scikit-learn.org/)
-- [XGBoost Guide](https://xgboost.readthedocs.io/)
-- [Feature Engineering Guide](https://machinelearningmastery.com/)
-- [Model Evaluation Guide](https://scikit-learn.org/stable/modules/model_evaluation.html)
-
-## 📝 License
-
-This project is provided for educational and commercial use.
-
-## 🤝 Contributing
-
-To improve the model:
-1. Analyze residuals for patterns
-2. Engineer new features based on domain knowledge
-3. Try different hyperparameters
-4. Compare with ensemble methods
-5. Validate on holdout data
-
-## 📞 Support
-
-For issues:
-1. Check the troubleshooting section
-2. Review error messages in the notebook
-3. Verify dataset format
-4. Check that all packages are installed
+# SmartPay India — Complete Salary Prediction Project
+
+A real, honestly-evaluated, end-to-end salary prediction system: trained on real Naukri.com job
+postings, wrapped in a complete web application that predicts, learns from user contributions,
+searches the web for unknowns, and reconciles every signal into one transparent answer.
 
 ---
 
-**Last Updated**: 2026-08-19
-**Python Version**: 3.8+
-**Status**: Production Ready ✓
+## Project Structure
+
+```
+SmartPay_India/
+├── README.md                          <- you are here
+├── notebook/
+│   └── employee_salary_prediction_INDIA.ipynb   <- full training pipeline (18 sections, executed, 0 errors)
+└── app/
+    ├── app.py                         <- run this: streamlit run app.py
+    ├── reconciliation_engine.py       <- combines model + web search + fuzzy match + industry fallback
+    ├── prediction_engine.py           <- core model inference + feature engineering
+    ├── data_store.py                  <- SQLite persistence (contributions, model versions)
+    ├── retrain_pipeline.py            <- full model retrain on community data
+    ├── external_lookup.py             <- live web search via Tavily (free tier)
+    ├── train_production_model.py      <- one-time script that built artifacts/
+    ├── artifacts/                     <- trained model, lookups, metadata (ready to use)
+    ├── data/                          <- SQLite DB (starts empty)
+    ├── requirements.txt
+    └── README.md                      <- full technical documentation, read this before deploying
+```
+
+## Quick Start
+
+```bash
+cd SmartPay_India/app
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+That's it — the app works immediately with the pre-trained model. Web search and community
+contributions are optional enhancements layered on top (see `app/README.md` for setup).
+
+## The Journey (why this project looks the way it does)
+
+1. **Started with a generic toy dataset** — quickly replaced once real data was provided, because a
+   clean synthetic dataset teaches the wrong lessons about what real salary prediction looks like.
+2. **Built the full pipeline on real Naukri.com data** (98K postings) — honestly confronted real data
+   quality problems (0-encoded "not disclosed" salaries, mixed currencies, extreme outliers) rather
+   than hiding them.
+3. **Got R²=0.59, and was asked "can we get to 0.90?"** — tested that question empirically rather than
+   guessing: quantified that experience alone explains ~48% of variance, and that a genuine ceiling
+   exists without company-identity signal.
+4. **Tested 5 additional real datasets** (Glassdoor-India, a second Naukri-style scrape, the Stack
+   Overflow Developer Survey 2025 both India-only and global) — none beat the original data, and the
+   process itself proved something: when Linear Regression and XGBoost land within 0.03-0.05 R² of
+   each other, that's a real information ceiling, not a modeling gap.
+5. **Fixed the actual gap** — proper out-of-fold target encoding of company/title/location took the
+   real result from 0.59 to **0.68**, the strongest defensible number across everything tested.
+6. **Built a complete application around it** — predict, contribute, retrain, search the web, and
+   reconcile every signal into one honest answer — catching and fixing two real bugs along the way
+   (an "instant blend" feature that was UI-only until traced through the actual code path, and a
+   disagreement-widening formula that could produce a nonsensical ₹0 lower bound).
+
+## Final Model Performance
+
+| Metric | Value |
+|---|---|
+| Test R² | **0.681** |
+| Test MAE | ~₹2.09 Lakh |
+| Trained on | 32,583 real, cleaned Naukri.com postings |
+| Known companies | 11,006 |
+| Known titles | 20,275 |
+| Quantile range coverage | ~79% (target 80%) |
+
+## Read Next
+
+- **`app/README.md`** — full technical documentation: architecture, the reconciliation engine's
+  signal-weighting logic, web search setup, deployment notes, and known limitations.
+- **`notebook/employee_salary_prediction_INDIA.ipynb`** — the complete, executed training pipeline
+  with every decision justified in place (why each library, why each feature, why each modeling choice).
