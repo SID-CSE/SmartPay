@@ -1,0 +1,53 @@
+{
+  "project_info": {
+    "dataset_size": 32583,
+    "total_features": 22,
+    "engineered_columns_after_encoding": 48,
+    "target_variable": "salary_mid (annual INR, midpoint of disclosed posting range)",
+    "problem_type": "regression",
+    "models_trained": [
+      "Linear Regression",
+      "Ridge",
+      "Lasso",
+      "Random Forest",
+      "Extra Trees",
+      "Gradient Boosting",
+      "XGBoost",
+      "LightGBM",
+      "XGBoost (Tuned)",
+      "LightGBM (Tuned)",
+      "Random Forest (Tuned)"
+    ]
+  },
+  "best_model": {
+    "name": "LightGBM (Tuned)",
+    "test_r2_score": 0.5933568696536609,
+    "test_rmse": 454174.00269712775,
+    "test_mae": 232086.57588460372,
+    "test_mape": 0.35513015848492824
+  },
+  "data_split": {
+    "train_size": 26066,
+    "train_percentage": 80.0,
+    "test_size": 6517,
+    "test_percentage": 20.0
+  },
+  "target_statistics": {
+    "mean": 711314.7960592947,
+    "median": 425000.0,
+    "std": 716060.013113676,
+    "min": 80000.0,
+    "max": 4500000.0
+  },
+  "quantile_range_calibration": {
+    "target_coverage": 0.8,
+    "empirical_test_coverage": 0.7960718121835201,
+    "mean_interval_width_inr": 723504.4783227805
+  },
+  "data_quality_notes": {
+    "raw_postings": 97929,
+    "disclosed_salary_pct": 33.9,
+    "outliers_capped_pct": 1.0,
+    "known_limitation": "Job-posting-level data (advertised role bands), not individual payroll records. Selection bias from ~66% non-disclosure. Estimated age is a derived experience proxy, not a real demographic field, and must not be used for individual-level age discrimination."
+  }
+}
