@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Streamlit: Run App",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "args": ["run", "app.py"],
+            "cwd": "${workspaceFolder}/app",
+            "justMyCode": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Train Model From Scratch",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/train_model.py",
+            "cwd": "${workspaceFolder}/app",
+            "justMyCode": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Retrain Pipeline (standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/retrain_pipeline.py",
+            "cwd": "${workspaceFolder}/app",
+            "justMyCode": true,
+            "console": "integratedTerminal"
+        }
+    ]
+}

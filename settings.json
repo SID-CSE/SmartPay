@@ -1,0 +1,18 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/app/venv/bin/python3",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/app"
+    ],
+    "jupyter.notebookFileRoot": "${workspaceFolder}/notebook",
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/venv": false
+    },
+    "python.testing.pytestEnabled": false,
+    "editor.rulers": [100],
+    "[python]": {
+        "editor.tabSize": 4
+    }
+}
