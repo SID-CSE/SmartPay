@@ -37,30 +37,50 @@ class PredictionEngine:
         self.model = joblib.load(self.artifact_dir / "model.pkl")
         self.q_low = joblib.load(self.artifact_dir / "quantile_p10.pkl")
         self.q_high = joblib.load(self.artifact_dir / "quantile_p90.pkl")
-        self.company_lookup = joblib.load(self.artifact_dir / "company_lookup.pkl")
-        self.title_lookup = joblib.load(self.artifact_dir / "title_lookup.pkl")
-        self.location_lookup = joblib.load(self.artifact_dir / "location_lookup.pkl")
+        metadata_path = self.artifact_dir / "metadata.json"
+        self.legacy_artifacts = not metadata_path.exists()
 
-        # Text vectorizers -- skills is always available (user provides it in the form);
-        # description is optional (an extra "paste a job description" field in the UI).
-        # Load gracefully so an older artifact set without these still works.
-        try:
-            self.skills_vec = joblib.load(self.artifact_dir / "skills_tfidf.pkl")
-            self.desc_vec = joblib.load(self.artifact_dir / "description_tfidf.pkl")
-        except FileNotFoundError:
+        if self.legacy_artifacts:
+            self.metadata = {
+                'global_mean_log_salary': float(np.log1p(711314.8)),
+                'smoothing': {'companyName': 10, 'title_norm': 15, 'primary_location': 20},
+                'test_r2': 0.5934,
+                'test_rmse': 454174.0,
+                'test_mae': 232086.6,
+                'quantile_coverage': 0.7961,
+                'n_training_rows': 32583,
+                'known_companies_count': 0,
+                'known_titles_count': 0,
+                'top_locations': ['ahmedabad', 'bengaluru', 'chennai', 'gurugram', 'hyderabad', 'jaipur', 'kochi', 'kolkata', 'mumbai', 'mumbai suburban', 'navi mumbai', 'noida', 'pune', 'remote', 'thane'],
+                'feature_cols_numeric': fe.NUMERIC_FEATURES[:18],
+                'feature_cols_categorical': fe.CATEGORICAL_FEATURES,
+                'model_version': 'bundled_base_model',
+            }
+            self.company_lookup = {}
+            self.title_lookup = {}
+            self.location_lookup = {}
             self.skills_vec, self.desc_vec = None, None
+            self.industry_lookup, self.industry_keywords = {}, {}
+        else:
+            with open(metadata_path) as f:
+                self.metadata = json.load(f)
+            self.company_lookup = joblib.load(self.artifact_dir / "company_lookup.pkl")
+            self.title_lookup = joblib.load(self.artifact_dir / "title_lookup.pkl")
+            self.location_lookup = joblib.load(self.artifact_dir / "location_lookup.pkl")
+            try:
+                self.skills_vec = joblib.load(self.artifact_dir / "skills_tfidf.pkl")
+                self.desc_vec = joblib.load(self.artifact_dir / "description_tfidf.pkl")
+            except FileNotFoundError:
+                self.skills_vec, self.desc_vec = None, None
+            try:
+                self.industry_lookup = joblib.load(self.artifact_dir / "industry_lookup.pkl")
+                self.industry_keywords = joblib.load(self.artifact_dir / "industry_keywords.pkl")
+            except FileNotFoundError:
+                self.industry_lookup, self.industry_keywords = {}, {}
 
-        with open(self.artifact_dir / "metadata.json") as f:
-            self.metadata = json.load(f)
         self.global_mean = self.metadata['global_mean_log_salary']
         self.top_locations = set(self.metadata['top_locations'])
-        self.data_store = data_store  # optional DataStore, enables blending user contributions
-
-        try:
-            self.industry_lookup = joblib.load(self.artifact_dir / "industry_lookup.pkl")
-            self.industry_keywords = joblib.load(self.artifact_dir / "industry_keywords.pkl")
-        except FileNotFoundError:
-            self.industry_lookup, self.industry_keywords = {}, {}
+        self.data_store = data_store
 
     def guess_industry(self, company_name: str) -> str:
         return fe.guess_industry(company_name, self.industry_keywords or fe.INDUSTRY_KEYWORDS)

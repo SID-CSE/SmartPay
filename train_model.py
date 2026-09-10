@@ -42,7 +42,7 @@ import feature_engineering as fe
 
 RANDOM_STATE = 42
 APP_DIR = Path(__file__).resolve().parent
-DEFAULT_DATA_PATH = APP_DIR.parent / "data" / "raw" / "indian-job-market-dataset-2025.xlsx"
+DEFAULT_DATA_PATH = APP_DIR / "indian-job-market-dataset-2025.xlsx"
 ARTIFACTS_DIR = APP_DIR / "artifacts"
 DATA_DIR = APP_DIR / "data"
 
@@ -78,7 +78,7 @@ def main(data_path: Path):
     # Save the cleaned + engineered dataset -- this is what retrain_pipeline.py
     # will load later, instead of depending on any machine-specific path.
     cleaned_path = DATA_DIR / "cleaned_training_data.csv"
-    df.drop(columns=['location_tokens']).to_csv(cleaned_path, index=False)
+    df.drop(columns=['location_tokens'], errors='ignore').to_csv(cleaned_path, index=False)
     print(f"Saved cleaned training data to {cleaned_path}")
 
     # Stratified split (by salary decile) so both sets represent the full salary spectrum
