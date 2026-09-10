@@ -15,6 +15,7 @@ import numpy as np
 from data_store import DataStore, hash_submitter
 from prediction_engine import PredictionEngine
 from reconciliation_engine import reconcile
+from job_search import search_similar_jobs
 import retrain_pipeline
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -94,6 +95,13 @@ with tab_predict:
     with col2:
         p_location = st.text_input("Location", "Bengaluru", key="p_location")
         p_skills = st.text_area("Skills (comma-separated)", "python, sql, aws", key="p_skills")
+        p_job_description = st.text_area(
+            "Job description (optional -- paste one for a more precise estimate)", "",
+            key="p_job_description", height=80,
+            help="Paste the actual job posting text if you have it. Improves accuracy from ~0.71 to ~0.72 R² "
+                 "by picking up on seniority language, tech stack, and role scope not captured elsewhere. "
+                 "Leave blank if you don't have one -- the estimate still uses your Skills field either way.",
+        )
         has_rating = st.checkbox("I know the company's rating", value=False, key="p_hasrating")
         p_rating = st.slider("Company rating", 1.0, 5.0, 3.9, 0.1, key="p_rating") if has_rating else None
         p_reviews = st.number_input("Review count", 0, 200000, 500, key="p_reviews") if has_rating else 0
@@ -102,7 +110,7 @@ with tab_predict:
         profile = {
             'title': p_title, 'company_name': p_company or 'Unknown Company',
             'experience_min': p_exp_min, 'experience_max': max(p_exp_max, p_exp_min),
-            'location': p_location, 'skills': p_skills,
+            'location': p_location, 'skills': p_skills, 'job_description': p_job_description,
             'company_rating': p_rating, 'company_reviews': p_reviews,
         }
         with st.spinner("Reconciling model, web search, and other signals..."):
@@ -140,6 +148,27 @@ with tab_predict:
                 st.caption(f"Company classified as: {r['industry_guessed']} (guessed from company name)")
             if r.get('web_search_result') and not r['web_search_result'].get('available'):
                 st.caption(f"Web search: {r['web_search_result']['message']}")
+
+        st.divider()
+        st.subheader("\U0001F30D Similar Jobs Currently Posted")
+        st.caption("A separate live search for real, current listings -- distinct from the salary estimate above, "
+                   "shown as market comparables, not blended into the prediction.")
+        if st.button("Search for similar jobs", key="job_search_btn"):
+            with st.spinner("Searching..."):
+                job_results = search_similar_jobs(st.session_state['last_profile'])
+            st.session_state['job_search_results'] = job_results
+
+        if 'job_search_results' in st.session_state:
+            jr = st.session_state['job_search_results']
+            if jr['available']:
+                st.success(jr['message'])
+                for job in jr['jobs']:
+                    with st.container(border=True):
+                        st.markdown(f"**{job['title']}**" + (f" — {job['company']}" if job['company'] else ""))
+                        st.caption(job['snippet'])
+                        st.markdown(f"[Open listing]({job['url']})")
+            else:
+                st.info(jr['message'])
 
         st.divider()
         st.caption("Think this estimate is off? Help improve it \u2192 go to **Contribute Real Data**.")

@@ -1,78 +1,218 @@
-# SmartPay India — Complete Salary Prediction Project
+# SmartPay India — Complete Salary Prediction Application
 
-A real, honestly-evaluated, end-to-end salary prediction system: trained on real Naukri.com job
-postings, wrapped in a complete web application that predicts, learns from user contributions,
-searches the web for unknowns, and reconciles every signal into one transparent answer.
+A real, end-to-end salary prediction system: trained on real Naukri.com job postings, wrapped in a
+complete web application that predicts, learns from user contributions, searches the web for
+unknowns and for similar jobs, and reconciles every signal into one transparent answer.
+
+**Ready to upload straight into VS Code and run.** `.vscode/` configs are included (interpreter path,
+debug configs, recommended extensions) so it works immediately, not just technically opens.
 
 ---
 
-## Project Structure
+## Part 1 — How It Works
+
+### 1.1 The Model
+
+Trained on **32,583 real, cleaned Naukri.com job postings** (from an original 97,929 — filtered to
+disclosed INR salaries, outlier-capped). Predicts an annual salary **range** (not just a point estimate)
+in Lakhs Per Annum, India's native convention.
+
+**How the final model was chosen** — every step measured, not assumed:
+
+| Stage | Test R² | What happened |
+|---|---|---|
+| Structured features only (experience, location tier, skills count, etc.) | 0.593 | Baseline: 8 models compared (Linear/Ridge/Lasso/Random Forest/Extra Trees/Gradient Boosting/XGBoost/LightGBM), LightGBM wins |
+| + Company/title/location target encoding | 0.681 | The single biggest lever: out-of-fold smoothed encoding captures real pay-scale identity from 11,006 companies without overfitting to the ~2 postings/company median |
+| + TF-IDF text features (skills + optional job description, bigrams) | **0.7215** | Final. Cross-validated stable (3-fold CV std = 0.0047) |
+
+**Tested and honestly rejected along the way** (not hidden):
+- CatBoost with native categorical handling: **0.656** — worse. Data too sparse per-company for its
+  ordered encoding to beat manual target encoding.
+- Multi-model ensembles (LightGBM+XGBoost+CatBoost, weighted or averaged): best result **0.681** —
+  tied with plain LightGBM alone, no real gain.
+
+**Final model:** LightGBM, tuned via `RandomizedSearchCV`, on target-encoded structured features +
+TF-IDF text signal. **Test R² = 0.72, Test MAE ≈ ₹1.93 Lakh.**
+
+### 1.2 The Application (not just a model in a notebook)
+
+```
+┌─────────────┐     ┌──────────────────────┐     ┌────────────────────┐
+│   Predict   │────▶│ reconciliation_engine │────▶│  One final answer   │
+│   (a form)  │     │ (combines 6 signals)  │     │  + confidence badge │
+└─────────────┘     └──────────────────────┘     │  + full breakdown   │
+                              │                    └────────────────────┘
+                     ┌────────┴────────┬──────────────┬─────────────┐
+                     ▼                 ▼               ▼             ▼
+              Trained model    Fuzzy title match   Web search    Industry
+              (known company)  (difflib)           (Tavily)      fallback
+```
+
+**Reconciliation signal weights** (blended in log-salary space; disagreement widens the range honestly
+instead of averaging it away):
+
+| Signal | Weight | When used |
+|---|---|---|
+| Community-verified exact match | 40 | A user already reported real salary for this exact company+title |
+| Trained model (company + title both known) | 30 | Default path for recognized entries |
+| Fuzzy-matched title | 15 | e.g. "Sr Dev" → "Senior Developer" |
+| Live web search (Tavily) | 12 | Company unrecognized; found a parseable figure online |
+| Industry-similar average | 8 | Company name suggests an industry (e.g. "...Bank Ltd") |
+| Role/experience/location baseline | 5 | Always included as the floor signal |
+
+**Two more application layers, beyond the model:**
+
+- **Contribute real data** → auto-sanity-checked against the model's own prediction → close matches
+  blend in *instantly* (next prediction reflects it, no retrain needed); outliers get queued for admin
+  review instead of silently trusted.
+- **Similar Jobs search** (`job_search.py`) → a *different* live web search from the salary lookup —
+  finds real, currently-posted listings (Naukri, LinkedIn, Indeed, Glassdoor) as market comparables,
+  shown separately, never blended into the salary number.
+
+### 1.3 One Codebase, No Drift
+
+`feature_engineering.py` is the single place every rule lives (age bands, seniority scoring, city
+tiers, target encoding, TF-IDF, industry guessing). The notebook, `train_model.py`, and
+`retrain_pipeline.py` **all import this same file** — they cannot silently compute a feature
+differently from each other. (An earlier version of this project didn't do this, and the notebook and
+the live app ended up as two incompatible pipelines. Fixed by construction now, not by promise.)
+
+---
+
+## Part 2 — Project Structure
 
 ```
 SmartPay_India/
-├── README.md                          <- you are here
+├── README.md                 <- you are here
+├── VSCODE_SETUP.md            <- VS Code specifics: debug configs, kernels, troubleshooting
+├── .vscode/                   <- ready-to-use workspace config (interpreter, debug, extensions)
+├── data/raw/                  <- the raw dataset (already included, nothing to download)
 ├── notebook/
-│   └── employee_salary_prediction_INDIA.ipynb   <- full training pipeline (18 sections, executed, 0 errors)
+│   ├── employee_salary_prediction_INDIA.ipynb   <- full pipeline, executed, 0 errors, every step explained
+│   └── requirements.txt
 └── app/
-    ├── app.py                         <- run this: streamlit run app.py
-    ├── reconciliation_engine.py       <- combines model + web search + fuzzy match + industry fallback
-    ├── prediction_engine.py           <- core model inference + feature engineering
-    ├── data_store.py                  <- SQLite persistence (contributions, model versions)
-    ├── retrain_pipeline.py            <- full model retrain on community data
-    ├── external_lookup.py             <- live web search via Tavily (free tier)
-    ├── train_production_model.py      <- one-time script that built artifacts/
-    ├── artifacts/                     <- trained model, lookups, metadata (ready to use)
-    ├── data/                          <- SQLite DB (starts empty)
+    ├── app.py                  <- run this: streamlit run app.py
+    ├── feature_engineering.py  <- single source of truth for every feature rule
+    ├── train_model.py          <- raw .xlsx in, artifacts/ out (~2-4 min)
+    ├── prediction_engine.py    <- core inference
+    ├── reconciliation_engine.py<- combines model + web search + fuzzy match + industry fallback
+    ├── job_search.py           <- NEW: finds real similar job listings (separate from salary lookup)
+    ├── external_lookup.py      <- salary web-lookup for unknown companies
+    ├── data_store.py           <- SQLite: contributions, model version history
+    ├── retrain_pipeline.py     <- full retrain on [base data + verified contributions]
     ├── requirements.txt
-    └── README.md                      <- full technical documentation, read this before deploying
+    ├── artifacts/               <- trained model, ready to use immediately
+    └── data/                    <- cleaned training data + community database (starts empty)
 ```
 
-## Quick Start
+---
+
+## Part 3 — Run It in VS Code (step by step)
+
+### 3.1 Open and Set Up
+
+```
+File → Open Folder... → select this SmartPay_India/ folder (the whole thing, not just app/)
+```
+
+VS Code will prompt to install recommended extensions (Python, Pylance, Jupyter, Python Debugger) —
+accept the prompt, or install manually from the Extensions panel (`Ctrl+Shift+X`).
+
+Open a terminal in VS Code (`` Ctrl+` ``) and create the virtual environment:
 
 ```bash
-cd SmartPay_India/app
-pip install -r requirements.txt
-streamlit run app.py
+cd app
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
 ```
 
-That's it — the app works immediately with the pre-trained model. Web search and community
-contributions are optional enhancements layered on top (see `app/README.md` for setup).
+*(Windows: `venv\Scripts\pip install -r requirements.txt`)*
 
-## The Journey (why this project looks the way it does)
+Then select this interpreter: `Ctrl+Shift+P` → **"Python: Select Interpreter"** → pick
+`app/venv/bin/python3` (VS Code usually detects it automatically).
 
-1. **Started with a generic toy dataset** — quickly replaced once real data was provided, because a
-   clean synthetic dataset teaches the wrong lessons about what real salary prediction looks like.
-2. **Built the full pipeline on real Naukri.com data** (98K postings) — honestly confronted real data
-   quality problems (0-encoded "not disclosed" salaries, mixed currencies, extreme outliers) rather
-   than hiding them.
-3. **Got R²=0.59, and was asked "can we get to 0.90?"** — tested that question empirically rather than
-   guessing: quantified that experience alone explains ~48% of variance, and that a genuine ceiling
-   exists without company-identity signal.
-4. **Tested 5 additional real datasets** (Glassdoor-India, a second Naukri-style scrape, the Stack
-   Overflow Developer Survey 2025 both India-only and global) — none beat the original data, and the
-   process itself proved something: when Linear Regression and XGBoost land within 0.03-0.05 R² of
-   each other, that's a real information ceiling, not a modeling gap.
-5. **Fixed the actual gap** — proper out-of-fold target encoding of company/title/location took the
-   real result from 0.59 to **0.68**, the strongest defensible number across everything tested.
-6. **Built a complete application around it** — predict, contribute, retrain, search the web, and
-   reconcile every signal into one honest answer — catching and fixing two real bugs along the way
-   (an "instant blend" feature that was UI-only until traced through the actual code path, and a
-   disagreement-widening formula that could produce a nonsensical ₹0 lower bound).
+### 3.2 Run the App (the model already included works immediately — no training required first)
 
-## Final Model Performance
+**Terminal:**
+```bash
+./venv/bin/streamlit run app.py
+```
 
-| Metric | Value |
-|---|---|
-| Test R² | **0.681** |
-| Test MAE | ~₹2.09 Lakh |
-| Trained on | 32,583 real, cleaned Naukri.com postings |
-| Known companies | 11,006 |
-| Known titles | 20,275 |
-| Quantile range coverage | ~79% (target 80%) |
+**Or with the debugger** (breakpoints work): press `F5`, or open Run & Debug (`Ctrl+Shift+D`) and pick
+**"Streamlit: Run App"** from the dropdown (already configured in `.vscode/launch.json`).
 
-## Read Next
+Your browser opens to the app. Try the **Predict** tab with a known company (e.g. "Infosys",
+"Software Engineer", Bengaluru) to see a high-confidence result, then try a made-up company name to see
+the honest low-confidence fallback kick in.
 
-- **`app/README.md`** — full technical documentation: architecture, the reconciliation engine's
-  signal-weighting logic, web search setup, deployment notes, and known limitations.
-- **`notebook/employee_salary_prediction_INDIA.ipynb`** — the complete, executed training pipeline
-  with every decision justified in place (why each library, why each feature, why each modeling choice).
+### 3.3 Check the Model Yourself — Score, Selection, Everything
+
+Three ways to verify the model without taking anything on faith:
+
+1. **In the app** — open the **Model Quality** tab: shows Test R², MAE, RMSE, and quantile calibration
+   live, pulled directly from `artifacts/metadata.json`.
+2. **Directly in a terminal:**
+   ```bash
+   cat app/artifacts/metadata.json
+   ```
+   Shows the exact test R², MAE, training row count, known companies/titles, and model version string.
+3. **Retrain from scratch and watch it happen:**
+   ```bash
+   cd app
+   ./venv/bin/python3 train_model.py
+   ```
+   Prints every stage live: raw row count → cleaning → feature engineering → target encoding → TF-IDF
+   fitting → LightGBM training → final Test R². Takes 2-4 minutes. Or use the **"Python: Train Model
+   From Scratch"** debug config to step through it.
+4. **See the full model-selection process** (all 8 models compared, tuning, feature importance,
+   residual analysis, fairness check) — open the notebook (see 3.4). This is where you can watch
+   LightGBM actually win against 7 other candidates, not just take the final choice on faith.
+
+### 3.4 Run the Notebook
+
+Open `notebook/employee_salary_prediction_INDIA.ipynb` directly in VS Code (the Jupyter extension
+renders it natively). Pick the `app/venv` kernel when prompted (needs `ipykernel`, already in
+`app/requirements.txt`). Click **Run All**, or step through with `Shift+Enter`.
+
+Takes 15-20 minutes end-to-end — it's the full pipeline: data audit → feature engineering → leakage
+audit → EDA → 8-model benchmark → TF-IDF → hyperparameter tuning → evaluation → feature importance →
+fairness analysis → quantile models → saves directly into `app/artifacts/` (no manual copying).
+
+### 3.5 Optional Enhancements
+
+**Live web search** (salary lookup for unknown companies + similar-jobs search), free:
+1. Sign up at [app.tavily.com](https://app.tavily.com) — no card, 1,000 free searches/month
+2. `export TAVILY_API_KEY="tvly-..."` before running the app (or add to `.streamlit/secrets.toml`)
+
+**Admin panel** (review contributions, trigger retrains) — default password `changeme123`, change via:
+```bash
+export SMARTPAY_ADMIN_PASSWORD="your-real-password"
+```
+
+---
+
+## Part 4 — Building Your Own Application On This
+
+- **Add a new page/feature** → new `st.tabs()` entry in `app.py`
+- **Add a new prediction signal** → follow the pattern in `reconciliation_engine.py`: gather the
+  signal, assign a trust weight, append to the `signals` list
+- **Change a feature rule** → edit `feature_engineering.py` once; the app, retrain pipeline, and
+  notebook all stay consistent automatically
+- **Move beyond SQLite** → `data_store.py`'s public methods are the only contract other files rely on;
+  swap its internals for a real database without touching anything else
+
+---
+
+## Known Limitations (stated plainly)
+
+- Predicts an advertised **role-level compensation band** from job postings, not a verified individual
+  paycheck.
+- Only ~34% of scraped postings disclosed salary — a real selection-bias limitation in the source data.
+- Accuracy is meaningfully lower for senior/10+ year experience profiles (surfaced explicitly in the app).
+- `age_band` is a derived experience proxy, **never a real demographic field** — never usable for
+  individual age-based decisions.
+- Exact-string company/title matching means close variants (e.g. "TCS" vs "Tata Consultancy Services")
+  aren't automatically unified — this is exactly why fuzzy title matching and the industry fallback exist.
+
+**Next:** read `VSCODE_SETUP.md` for IDE-specific troubleshooting, or `app/README.md` for deeper
+technical documentation on the reconciliation engine and deployment notes.
